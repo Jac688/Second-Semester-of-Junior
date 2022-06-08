@@ -1,0 +1,344 @@
+---
+title: "House Price Prediction and Attribute Analysis"
+author: "Group 4"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### Introduction to datasets
+The dataset was originally used to predict house prices in California. It contains more than 20,000 data samples and each of which consists of ten variables. The following are the explanations of the variables in terms of meaning:
+
+Longitude/ latitude: Together form coordinates that represent particular places on Earth.
+
+*housing_median_age*: The median age of the house.
+
+*total_rooms*: The number of rooms in the house.
+
+*total_bedrooms*: The number of bedrooms in the house
+
+*population*: Population in the area where the house is located.
+
+*households*: The number of families suitable for living in the house.
+
+*median_income*: Median income in the area where the home is located.
+
+*median_house_value*: The median of the house value.
+
+Recall that our goal is to 1) Fit a model for house price prediction. 2) Explore the relationship between various variables, estimate and simulate the distribution and characteristics of sample data, and calculate their errors
+
+### Data analysis
+To preserve the analysis is feasible, the step is to normalize all the attributes to eliminate the influences bring by scale. And after that, for the model fitting, a correlation matrix should be plotted for observing the relationship between variables.
+```{r, echo=FALSE, warning=FALSE, out.width="260px", out.height="260px", fig.align="center"}
+library(corrplot)
+library(ggplot2)
+library(ggcorrplot)
+library(scales)
+
+data<-read.csv("housing_train.csv")
+corr <- round(cor(data), 1)
+#head(corr[, 1:6])
+
+mypalette<- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+mycolors <- mypalette(200)
+#show_col(mycolors)
+
+corrplot(
+	corr,
+	method="color",
+	col=mycolors,
+	type="lower", 
+	order="hclust", 
+	addCoef.col = "black", 
+	tl.col="black", 
+	tl.srt=0  )
+```
+By the plot, we obtain that there are strong correlations between the four variables (total_rooms, population, total_bedrooms, and households) in pairs.
+
+Meanwhile, for the second target, we need to know what distribution latitude and longitude follow. And to better understand them, we also construct statistics for longitude and latitude in terms of kurtosis and skewness.
+<div align=center width="200">
+![avatar](kurtosis and skewness.png)
+</div>
+
+To verify if the results are meaningful, we further plot the histogram of the above three variables.
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center"}
+par(mfrow=c(3,3))
+hist(data$latitude,xlab ="latitude",main = "Histogram of latitude")
+hist(data$longitude,xlab ="longitude",main = "Histogram of longitude")
+hist(data$housing_median_age,xlab ="housing_median_age",main = "Histogram of housing_median_age")
+hist(data$median_income,xlab ="median_income",main = "Histogram of median_income")
+
+hist(data$population,xlab ="population",main = "Histogram of population")
+hist(data$total_rooms,xlab ="total_rooms",main = "Histogram of total_rooms")
+hist(data$total_bedrooms,xlab ="total_bedrooms",main = "Histogram of total_bedrooms")
+hist(data$households,xlab ="households",main = "Histogram of households")
+
+hist(data$median_house_value,xlab ="median_house_value",main = "Histogram of median_house_value")
+```
+
+The histograms prove that the test of *House_Median_Price* makes sense because it approximately follows a normal distribution, while for latitude and Longitude, quite the reverse is true. For a better exploration of the distribution they follow, we plot a scatter plot (x-longitude, y-latitude). And find that the houses are approximately located as two clusters close to (-1, 1) and (1, -1). The reason why it will perform like that is that the distribution they follow is Mixture Gaussian Distribution, which will be introduced later.
+```{r, echo=FALSE, warning=FALSE, fig.align="center", out.width="280px", out.height="280px"}
+ggplot(data,
+       aes(x = data$median_income,
+           y = data$median_house_value)) +
+  geom_point(color="cornflowerblue",
+             size = 1,
+             alpha = 0.4) +
+  geom_smooth(size = 0.5,
+              color = "tomato",
+              method = "lm",
+              formula = y ~ poly(x, 2)) +
+  scale_y_continuous(limits = c(0, 500000)) +
+  scale_x_continuous(breaks = seq(-2, 6, 1)) +
+  labs(x = "median income",
+       y = "median house value",
+       title = "Relationship between income and house price") +
+theme_minimal()
+```
+
+### Introduction to kernel density estimate
+Kernel Density Estimation (KDE) is used to estimate unknown density functions and is one of the nonparametric test methods. It uses a kernel function to fit the observed data and use it to simulate the population’s probability density function.
+
+In the case that we know the probability distribution of a certain thing, if a certain number appears many times in the observation, we can think that the probability density of this number is very large, and the probability density of the number closer to this number will also be larger, and those numbers farther away from this number will have a lower probability density. The kernel function is to help us estimate the distribution probability for this property. Based on this idea, for each number in the observation, we can use the kernel function K to fit the probability density of the far small near large in our imagination. Take the average of multiple probability density distribution functions fitted to each observation. The fitted density function is:
+$$\frac{1}{n}\sum_{i=1}^n K_h(x-x_i)=\frac{1}{nh}\sum_{i=1}^n K(\frac{x-x_i}{h})$$
+Where h is smoothing parameter. The density function drawn by different h has different degrees of smoothness. Below are plots of kernel density estimates for different bandwidths of house price data.
+
+```{r, echo=FALSE, warning=FALSE, fig.align="center", out.width="280px", out.height="280px"}
+median_house_value<-data$median_house_value
+n <- length(median_house_value)
+h1 <- 1.06 * sd(median_house_value) * n^(-1/5)
+h2 <- .9 * min(c(IQR(median_house_value)/1.34,sd(median_house_value))) * n^(-1/5)
+h0 <- bw.nrd0(median_house_value)
+
+par(mfrow = c(1, 2))
+plot(density(x=median_house_value,bw=h1), main="bw=1.399e^4")
+plot(density(x=median_house_value,bw=h2), main="bw=1.757e^4")
+```
+And also for the house price data, we select some different kernel function with the same bandwidth to do the KDE. As a result, the difference between them is not so obvious.
+```{r, echo=FALSE, warning=FALSE, fig.align="center", out.width="280px", out.height="280px"}
+par(mfrow = c(2, 2))
+plot(density(x=median_house_value,kernel = "gaussian"), main="gaussian")
+plot(density(x=median_house_value,kernel = "triangular"), main="triangular")
+plot(density(x=median_house_value,kernel = "biweight"), main="biweight")
+plot(density(x=median_house_value,kernel = "cosine"), main="cosine")
+```
+
+For each attribute, we draw the kernel density estimation diagram attch to the histogram. As follow:
+```{r, echo=FALSE, warning=FALSE, message=FALSE,fig.align="center", out.width="280px", out.height="280px"}
+library(ggplot2)
+# install.packages("Rmisc")
+library(Rmisc)
+p1 <- ggplot(data,aes(x=latitude))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of latitude")
+
+p2 <- ggplot(data,aes(x=longitude))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of longitude")
+
+p3 <- ggplot(data,aes(x=housing_median_age))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of housing_median_age")
+
+p4 <- ggplot(data,aes(x=median_income))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of median_income")
+
+p5 <- ggplot(data,aes(x=population))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of population")
+
+p6 <- ggplot(data,aes(x=total_rooms))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of total_rooms")
+
+p7 <- ggplot(data,aes(x=total_bedrooms))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of total_bedrooms")
+
+p8 <- ggplot(data,aes(x=households))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of households")
+
+p9 <- ggplot(data,aes(x=median_house_value))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of median_house_value")
+multiplot(p1,p2,p3,p4,p5,p6,p7,p8,p9, cols=3)
+```
+#### Formula explanation
+Take the kernel function Gaussian distribution as an example. x makes a difference for each sample point $(x_i)$, if x is closer to x_i, the smaller the difference, the larger the result of the kernel function. Conversely, if it is farther from the sample point, the result is closer to 0. Finally, average the output of the kernel function of all the sample points of this point, which means that the higher the kernel function result can affect the result of the store.
+
+#### Core Concept
+Kernel density estimation uses the data and bandwidth of each data point as the parameters of the kernel function through the kernel function and obtains N kernel functions. Then linearly superimpose them to form the estimation function of the kernel density. After normalization, the result is the kernel density probability distribution. 
+
+
+### MLE and Sample Method estimation of variables’ mean and variance
+To better glimpse the population means and variance of chosen variables, we perform maximum likelihood estimation and sample method estimation respectively. 
+
+#### Sample Method’s explanation
+
+By using the data itself, it is possible to estimate changes in statistics calculated from that data. Calculates the error of a sample statistic in estimating a population statistic by simply using the sample data at hand without making any assumptions about the distribution of the population. There are some main steps:
+
+1. Using repeated sampling techniques to draw a certain number of samples from the original sample with replacement.
+2. Calculate the statistic $T^*$ to be estimated based on the sample drawn.
+3. Repeat the above N times to obtain N statistics $T^*$.
+4. Obtain the original sample statistic T and N groups $T^*$ of the bootstrap, and use how $T^*$ changes around $T$ to infer how $T$ changes around the overall estimator.
+
+#### MLE explanation
+Maximum likelihood estimation (MLE) is a method of estimating the parameters of an assumed probability distribution. For an arbitrary distribution, how well the sample data follow the distribution relies on the value of distribution parameters. What maximum likelihood estimation does is to find the parameters that have the greatest likelihood of a given observation.
+
+\underline{Basic flow:}
+
+1. Writing the likelihood function: $L(\theta)=f(x_1,x_2,...,x_n|\theta)=\prod_{i=1}^nf(x_i|\theta)$, which is the product of the probabilities that each observation fits the distribution.
+2. Taking the logarithm of the likelihood function: $l(\theta)=ln(L(\theta))=\sum_{i=1}^n log(f(x_i|\theta))$. In general, this step can convert the product in the expression into summation, which is more convenient for derivation later.
+3. Taking derivatives correspond to parameters and make the result equal to 0 $\frac{\partial l}{\partial \theta}=0$ to find the optimal value of $\theta$ when $l(\theta)$ is the largest.
+4. Obtain the parameter estimators.
+
+\underline{Deduction of normally distributed estimator:}
+
+1. $f(x)=\frac{1}{\sqrt{2\pi\sigma}} e^{-\frac{(x-\mu)^2}{2\sigma^2}}$
+2. $L(\mu, \sigma^2)=\prod_{i=1}^n\frac{1}{\sqrt{2\pi\sigma}} e^{-\frac{(x_i-\mu)^2}{2\sigma^2}}=({2\pi\sigma})^{-\frac{n}{2}} e^{-\sum_{i=1}^n ( \frac{(x-\mu)^2}{2\sigma^2})}$
+3. $l(\mu, \sigma^2)=ln(L(\mu, \sigma^2))=ln(({2\pi\sigma})^{-\frac{n}{2}} e^{-\sum_{i=1}^n ( \frac{(x-\mu)^2}{2\sigma^2})})=-\frac{n}{2}(ln2\pi+ln \sigma^2)-\frac{1}{2\sigma^2}\sum_{1=2}^n(x_i-\mu)^2$
+
+4. Finally, we can get: $$\begin{cases}
+\frac{\partial l}{\partial \mu}=\frac{1}{\sigma^2} \sum_{i=1}^n(x_i-\mu)^2=0 \\
+\frac{\partial l}{\partial \sigma^2}=-\frac{n}{2\sigma^2}+\frac{1}{2\sigma^4} \sum_{i=1}^{n}(x_i-\mu)^2=0
+\end{cases} \Rightarrow 
+\begin{cases}
+\mu=\frac{1}{n} \sum_{i=1}^n x_i=\bar x \\
+\sigma=\frac{1}{n}\sum_{i=1}^n(x_i-\mu)^2
+\end{cases}  $$
+
+
+\underline{Deduction of exponential distribution estimator:}
+
+1. $f(x)=\lambda e^{-\lambda x}$
+2. $L(\lambda)=\prod_{i=1}^n \lambda e^{-\lambda x_i}$
+3. $l(\lambda)=ln(L(\lambda))=ln\lambda^n+ln e^{-\lambda\sum_{i=1}^nx_i}=n ln\lambda+\lambda\sum_{i=1}^nx_i$
+4. $\frac{\partial l}{\partial \lambda}=\frac{n}{\lambda}-\sum_{i=1}^nx_i \Rightarrow \lambda=\frac{n}{\sum_{i=1}^nx_i}=\frac{1}{\bar x}$
+
+#### Expectation Maximization Algorithm (EM) explanation
+The EM algorithm is an iterative method to find maximum likelihood estimates of parameters in statistical models (pdf in our case), where the model depends on unobserved latent variables. Every iteration can be separated into E (expect) Step and M (maximum) Step. E step creates a function for log-likelihood expectation evaluated via current parameters’ estimations. M step maximizing the expected log-likelihood and compute the parameters correspondingly. The intuition explanation in our experiment is to firstly initialize parameters corresponding to observations. And then estimate the missing data depending on the parameters calculated in the last step. Repeating this process until convergence. In our application scenario, we assume the pdf of Longitude and Latitude are Gaussian Mixed Model, based on the observation histogram, with initial parameter guess as follows.
+$$p(x)=\sum_{k=1}^K \alpha_k N(x|\mu_k,\alpha_k)$$
+<div align=center width="200">
+![avatar](EM_Introduction.png)
+</div>
+
+Therefore, we have totally six parameters (each distribution three) to be estimated. And at beginning, the log-likelihood function should be calculated. Which is:
+$$-\sum_{n=1}^N \frac{\pi_k N(x_n|\mu_k, \sigma_k)}{\sum_j \pi_j M_j(x_n|\mu_j, \sigma_j)} \sigma_k^{-1}(x_n-\mu_k)$$
+And let the expression equals to zero, we then are capable to obtain parameters.
+$$\mu_k=\frac{1}{N_k}=\gamma_{nk}x_n, \sigma_k=\frac{\sum_{n=1}^N \gamma_{nk}(x_n-\mu_k)(x_n-\mu_k)^T}{N_k}, \alpha_k=\frac{N_k}{N} $$
+$$\gamma_{nk}=\frac{\alpha_kN(x_n|\mu_n,\sigma_n)}{\sum_{j=1}^K \alpha_kN(x_n|\mu_j,\sigma_j)}, N_k=\sum_{n=1}^N \gamma_{nk}$$
+Afterward, we can iteratively execute the above computation until meet the convergent conditions to obtain the result. 
+
+
+### Monte Carlo Simulation
+The Monte Carlo method is a computational algorithm, that relies on random sampling, and can be used for parameter estimation. The process is to first generate a Monte Carlo sample based on the distribution assumption. And then using the proper estimate method to calculate estimators. In our scenario, we assume the Median house value follows the Normal distribution while Longitude, Latitude follow the Gaussian Mixture distribution.
+
+Besides, the estimate method we choose is still the sampling method and maximum likelihood method. Both these methods will be used for the estimation of mean and variance, in the meantime, the comparison between the two methods’ results based on mean square errors under different scale samples will be conducted as well. Meanwhile, for the estimators, we construct the confidence intervals.
+
+
+### Experiment
+1. Sample Method and Maximum Likelihood Estimation
+Bootstrap is used when the sampling method is implemented. We set the iteration times to be 2000, and the number of data selected each time to be n divided by 5 where n represents the number of total samples. For every variable, we execute the Bootstrap algorithm to obtain 2000 estimated parameters. And then take the mean of these estimated parameters as the result.
+
+<div align=center width="200">
+![avatar](sample estimation.png)
+</div>
+
+When performing Maximum likelihood estimation, the pre-calculated MLE estimators are involved. And the variable (Median_house_value) mean and variance can be obtained easily. Initially, we prefer to use exponential distribution as the assumed pdf. However, the results are unacceptable. Hence, we switch to a normal distribution, and this time, the estimators work well. For the two excluded variables, we’ve introduced the EM method for the estimation. The Assumption is that the Gaussian Mixture Model consists of two Gaussian distributions with initial parameters set as $\alpha$ of both distributions equal to 0.5, $\sigma$, $\mu$ equal to random number from a uniform distribution. In detail, in terms of algorithm, the maximum iteration is settled to be 200, and the convergent condition is that the subtraction of parameters of the last step and current step is smaller than the threshold (1e-5).
+
+<div align=center width="200">
+![avatar](mle estimation.png)
+</div>
+
+2. MC Stimulation
+For House Price, we set up two sample sizes (500 and 10000) and perform 1000 iterations. For each generated MC sample, both the sampling method (200 iterations) and the MLE method are used. And the result varies corresponding to a different scale. Since the distribution is assumed to be the normal distribution, the MC generation can be conducted with the assistance of the R-provide function (rnorm).
+
+<div align=center width="200">
+![avatar](MC Stimulation.png)
+</div>
+
+For Longitude and Latitude, we need to write our function because R does not provide the random function for Mixture Gaussian distribution. Instead of using the random guessing parameters, we used those calculated in the previous step as initialization. Besides, for the variables that follow Mixture Gaussian distribution, MLE cannot solve the estimation directly, hence EM method will be conducted. And the results are as follows:
+
+<div align=center width="200">
+![avatar](mc 2.png)
+</div>
+
+
+### Modeling
+#### 1. Best Model Selection
+To select the best model, we use the Jackknife (leave one out) method. When verifying the model fitting ability, one sample is left for cross-validation, and the rest of the data is used to fit the model. Then the average error of each validation is used to evaluate the model fitting ability.
+
+\underline{Basic flow:}
+1. Use a stepwise way to remove multicollinearity between variables, but we find the data does not have attributes that need to be eliminated.
+
+2.	Model assumptions. Model1 is the exponential model; Model2 to Model6 use the best fit line in the scatter plot of each attribute and house price as a reference and try to use grid search to filter out some bad model. In addition, there is a skill can be used that plot the model diagnostics graph before Jackknife test. Finally, we assume six models.
+
+3. Use the LM function to fit the data and leave one sample for verification each time to calculate the average prediction error. Model1 and Model2 are linear models and exponential models. Model3 and model4 use the best fit line in the scatter plot of each attribute and house price as a reference. For the data, the relationship between households, total bedrooms and total bedrooms and y is not a straight line but a curve like a quadratic function, we set these items to the second power term.
+
+
+4. As a result of the last step, the minimum error of mean squared error is still a bit high. Thus, we can try to perform feature engineering on the data by principal component analysis (PCA) to reduce the dimension of the data and select the first 6 principal components that can represent the data. We try to use 6 new pc attributes to fit the model. 
+
+Then we do the model assumption again. Model1 is the exponential model; Model2 to Model6 use the best fit line in the scatter plot of each PC attribute and house price as a reference and try to use grid search to filter out some bad model. In addition, there is a skill can be used that plot the model diagnostics graph before Jackknife test. Here we use jackknife method to select model again and we find the model6 has the smallest prediction error. The model is: 
+
+$$log(y) = PC1 + log(PC2)+ log(PC3) + log(PC4) + PC5^2 + log(PC6) + b$$
+
+
+<div align=center width="200">
+![avatar](jackknife error.png)
+</div>
+
+5. The final step is model diagnosing, we can plot the model and observe the fitting effect. Most importantly, we can find the outliers and extreme points which can influence the model fitting. Then just remove them to improve the model.
+
+<div align=center width="200">
+![avatar](dignose.png)
+</div>
+
+
+#### 2. Estimate Bias and Standard Error
+
+In this model, we have 8 estimators. For each estimator, we use the bootstrap method to estimate the coefficient. Base on the ordinary parameter and estimated value, we can get the bias and standard error.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, eval=FALSE}
+theta1 <- J1$coef[1]
+theta2 <- J1$coef[2]
+theta3 <- J1$coef[3]
+theta4 <- J1$coef[4]
+theta5 <- J1$coef[5]
+theta6 <- J1$coef[6]
+theta7 <- J1$coef[7]
+theta8 <- J1$coef[8]
+theta9 <- J1$coef[9]
+B <- 2000
+len <- length(final_num_value$y)
+theta.hat1 <- theta.hat2 <- theta.hat3 <- theta.hat4 <- theta.hat5 <- theta.hat6 <- theta.hat7 <- numeric(B)
+for (b in 1:B) {
+    sam <- final_num_value %>%  slice_sample(n = len, replace = TRUE)
+    y <- sam$y
+    x1 <- sam$PC1
+    x2 <- sam$PC2
+    x3 <- sam$PC3
+    x4 <- sam$PC4
+    x5 <- sam$PC5
+    x6 <- sam$PC6
+    model <- lm(log(y) ~ x1+log(x2)+log(x3)+log(x4)+x5+log(x6))
+    theta.hat1[b] <- model$coef[1]
+    theta.hat2[b] <- model$coef[2]
+    theta.hat3[b] <- model$coef[3]
+    theta.hat4[b] <- model$coef[4]
+    theta.hat5[b] <- model$coef[5]
+    theta.hat6[b] <- model$coef[6]
+    theta.hat7[b] <- model$coef[7]
+}
+bias1 <- mean(theta1 - theta.hat1)
+bias2 <- mean(theta2 - theta.hat2)
+bias3 <- mean(theta3 - theta.hat3)
+bias4 <- mean(theta4 - theta.hat4)
+bias5 <- mean(theta5 - theta.hat5)
+bias6 <- mean(theta6 - theta.hat6)
+bias7 <- mean(theta7 - theta.hat7)
+se1 <- sd(theta.hat1)
+se2 <- sd(theta.hat2)
+se3 <- sd(theta.hat3)
+se4 <- sd(theta.hat4)
+se5 <- sd(theta.hat5)
+se6 <- sd(theta.hat6)
+se7 <- sd(theta.hat7)
+res <- data.frame(bias=c(bias1,bias2,bias3,bias4,bias5,bias6,bias7), 
+                  standard_error=c(se1,se2,se3,se4,se5,se6,se7))
+
+```
+<div align=center width="200">
+![avatar](boostrap error.png)
+</div>
+
+
+### Conclusion
+In this project, we clearly describe and explain the concept of some estimation methods. And we perform data visualization, parameters estimation, and distribution estimation for the sample data to analyze it from various angles. Meanwhile, we also fit a model for house price prediction as well as figure out the house distribution in terms of latitude and longitude.

@@ -1,0 +1,151 @@
+---
+title: "Individual Assignment"
+author: "Jack"
+date: "2022/3/12"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+
+
+```{r warning=FALSE, message=FALSE}
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+```
+
+### 1. Load projects.csv data.
+```{r warning=FALSE, message=FALSE}
+data = read.csv("./projects.csv")
+head(data)
+```
+
+### 2. Create a new column called “project_order” that shows how many projects a teacher has created including the given project.
+
+(1) Change the data type of *date_posted* column into date
+
+```{r warning=FALSE}
+# install.packages("lubridate")
+library("lubridate")
+data$date_posted<-mdy(data$date_posted)
+class(data$date_posted)
+```
+
+(2) Create a new column called “project_order” that shows how many projects a teacher has created including the given project.
+```{r warning=FALSE}
+data$project_order<-1
+data %>%
+  group_by(teacher_id) %>%
+  arrange(teacher_id) %>% 
+  mutate(project_order = cumsum(project_order)) -> data
+head(data[c("teacher_id", "date_posted", "project_order")], 20)
+```
+
+(3) Recode all values of *project_order* larger than 5 to 6. In other words, after the manipulation, the value of 6 in the *project_order* column should mean 6 or larger numbers. 
+```{r }
+data[which(data$project_order>=6), 'project_order'] <- 6
+head(data[c("teacher_id", "date_posted", "project_order")], 20)
+```
+
+### 3. Graph the density of project sizes only for project_order==1 and project_order==6. As a variable for project sizes, use *total_price_excluding_optoinal_support*. If you use ggplot2 library, you can use the *geom_density* function. 
+
+```{r warning=FALSE}
+ggplot() +
+  geom_density(data=data[data$project_order==1,], mapping=aes(total_price_excluding_optional_support), alpha=0.7, colour="blue", fill='lightblue') + 
+  xlim(0,2000) + 
+  ggtitle( "Total price excluding optional support for project order 1")
+```
+```{r warning=FALSE}
+ggplot() +
+  geom_density(data=data[data$project_order==6,], mapping=aes(total_price_excluding_optional_support), alpha=0.7, colour="red", fill='pink') + 
+  xlim(0,2000) + 
+  ggtitle("Total price excluding optional support for project order 6")
+```
+
+```{r warning=FALSE}
+print("Test the distribution of project_order equal to 1")
+data %>%
+  filter(project_order == 1) %>%
+  select(total_price_excluding_optional_support) %>%
+  ks.test("pnorm")
+
+print("Test the distribution of project_order equal to 6")
+data %>%
+  filter(project_order == 6) %>%
+  select(total_price_excluding_optional_support) %>%
+  ks.test("pnorm")
+
+``` 
+Ans1. We can see that the  p-value of both of two distribution is very small, which means that there is enough strong evidence to reject the hypothesis that the distribution is normal distribution. Therefore, I do not think these distribution are close to normal density.
+
+
+Ans2. The distribution with project_order = 1 has only one peak, while the distribution with project_order = 6 has two peaks.
+
+
+### 4. Demonstrate that Chebychev’s inequality holds for the distribution of project sizes.
+```{r warning=FALSE}
+project_size <- data$total_price_excluding_optional_support
+size_mean <- mean(project_size)
+size_sd <- sd(project_size)
+poss_2 <- sum((size_mean - 2*size_sd) < project_size & project_size < (size_mean + 2*size_sd))/length(project_size)
+
+poss_3 <- sum((size_mean - 3*size_sd) < project_size & project_size < (size_mean + 3*size_sd))/length(project_size)
+
+poss_2
+poss_3
+```
+We can find that when k = 2, the data in the two standard deviations of the mean is larger than 75%. When k = 3, the data in the three standard deviations of the mean is larger than 89%. So Chebychev’s inequality holds for the distribution of project sizes.
+
+
+### 5. Using the *projects* table, it is time to create a new data set that you will name “teachers.” This table should have two columns for each teacher.
+
+```{r warning=FALSE, message=FALSE}
+teachers <- data.frame(teacher_id = unique(data$teacher_id))
+teachers$last<- (data %>% 
+                   group_by(teacher_id) %>% 
+                   arrange(teacher_id) %>%
+                   summarise(maximum=max(project_order)))$maximum
+                   
+teachers$avg_project<- (data %>% 
+              group_by(teacher_id) %>% 
+                arrange(teacher_id) %>% 
+              select(total_price_excluding_optional_support) %>% 
+              summarise(avg_project=mean(total_price_excluding_optional_support)))$avg_project
+head(teachers, 20)
+```
+
+### 6. Using the new “teachers” table, graph the densities of average project size only for last==1 and last==6. 
+```{r warning=FALSE}
+ggplot() +
+  geom_density(data=teachers[teachers$last==1,], mapping=aes(avg_project), alpha=0.7, colour="blue", fill="lightblue") +
+  xlim(0, 2000)
+ggplot() +
+  geom_density(data=teachers[teachers$last==6,], mapping=aes(avg_project), alpha=0.7, colour="red", fill="pink") + 
+  xlim(0, 2000)
+```
+
+```{r warning=FALSE}
+print("Test the distribution of last equal to 1")
+teachers %>%
+  filter(last == 1) %>%
+  select(avg_project) %>%
+  ks.test("pnorm")
+
+print("Test the distribution of last equal to 6")
+teachers %>%
+  filter(last == 6) %>%
+  select(avg_project) %>%
+  ks.test("pnorm")
+
+``` 
+
+Ans1. We can see that the  p-value of both of two distribution is very small, which means that there is enough strong evidence to reject the hypothesis that the distribution is normal distribution. Therefore, I do not think these distribution are close to normal density.
+
+Ans2. Compared to the distribution with last=1, the "avg_project" with "last" equal to 6 is more concentrated and smoother, with only 1 peak. The distribution of last=1 fluctuates greatly and does not tend to be flat.
+
+
+### 7. Interpret the differences between outputs of step 3 and outputs of step 6. What would you conclude in relation to the given research interest?
+
+Ans. In step 6, our avg_project is equivalent to averaging the teacher's Total price excluding optional support for project order. In general, we can find that the distribution in step6 will be slightly more concentrated and smoother than that in step1, which is more obvious in the distribution of the number of 6. The reason for this may be that teachers who have done multiple projects will be more proficient than those who have only once, which can help them pay more attention to the rationality of size each time they set out a project, and keep it at a stable level instead of huge changing.

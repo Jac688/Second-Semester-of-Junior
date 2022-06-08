@@ -1,0 +1,246 @@
+---
+title: "ITSC_Modeling"
+author: "Jack"
+date: "2022/5/11"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, warning=FALSE}
+warnings('off')
+library("ggplot2")
+library("dplyr")
+library("corrplot")
+library("plyr")
+library("car")
+library(ggrepel)
+library(devtools)
+```
+
+### read data
+```{r, warning=FALSE}
+df <- read.csv("../input/california-housing-price-prediction-regression/housing_train.csv", sep = ",")
+head(df)
+```
+
+### powerTransform
+```{r, warning=FALSE}
+rt = powerTransform(median_house_value~., df)
+summary(rt)
+```
+
+###PCA
+```{r, warning=FALSE}
+df.pca <- prcomp(df[1:8],center = TRUE,scale. = TRUE)
+summary(df.pca)
+x <- df.pca$x[,1:6]
+```
+
+### Initialization 
+```{r, warning=FALSE}
+final_num_value <- data.frame(cbind(x, y))
+# print(final_num_value)$
+pc1 <- final_num_value$PC1
+pc2 <- final_num_value$PC2
+pc3 <- final_num_value$PC3
+pc4 <- final_num_value$PC4
+pc5 <- final_num_value$PC5
+pc6 <- final_num_value$PC6
+y <- df$median_house_value
+J1 <- lm(log(y) ~ pc1+log(pc2)+log(pc3)+log(pc4)+pc5+log(pc6))
+pred <- J1$coef[1] + J1$coef[2]*final_num_value$PC1 + J1$coef[3]*log(final_num_value$PC2) + J1$coef[4]*log(final_num_value$PC3)
+                        + J1$coef[5]*log(final_num_value$PC4) + J1$coef[6]*final_num_value$PC5 + J1$coef[7]*log(final_num_value$PC6)
+summary(J1)
+
+print(mean(pred - log(y), na.rm=TRUE))
+
+par(mfrow = c(2, 2))
+plot(J1)
+# rt = powerTransform(y ~ pc1+pc2+pc3+pc4+pc5+pc6)
+# summary(rt)
+```
+
+###plot relationship
+```{r, warning=FALSE}
+library(scales)
+# Scatterplot with quadratic line of best fit
+# REPLACE here
+ggplot(df,
+       aes(x = pc1,
+           y = y)) +
+  geom_point(color="cornflowerblue",
+             size = 1,
+             alpha = 0.4) +
+  geom_smooth(size = 0.5,
+              color = "tomato",
+              method = "lm",
+              formula = y ~ poly(x, 2)) +
+  scale_y_continuous(limits = c(0, 500000)) +
+  scale_x_continuous(breaks = seq(-2, 6, 1)) +
+  labs(x = "median income",
+       y = "median house value",
+       title = "Relationship between income and house price") +
+theme_minimal()
+```
+
+
+
+###plot relationship
+```{r, warning=FALSE}
+library(scales)
+# Scatterplot with quadratic line of best fit
+# REPLACE here
+ggplot(df,
+       aes(x = pc1,
+           y = y)) +
+  geom_point(color="cornflowerblue",
+             size = 1,
+             alpha = 0.4) +
+  geom_smooth(size = 0.5,
+              color = "tomato",
+              method = "lm",
+              formula = y ~ poly(x, 2)) +
+  scale_y_continuous(limits = c(0, 500000)) +
+  scale_x_continuous(breaks = seq(-2, 6, 1)) +
+  labs(x = "median income",
+       y = "median house value",
+       title = "Relationship between income and house price") +
+theme_minimal()
+```
+
+### jackknife valid
+```{r, warning=FALSE}
+warnings('off')
+n <- length(df$median_house_value) #in DAAG ironslag
+e1 <- e2 <- e3 <- e4 <- e5 <- e6 <- numeric(n)
+# for n-fold cross validation
+# fit models on leave-one-out samples
+for (k in 1:n) {
+    y <- df$median_house_value[-k]
+    x1 <- final_num_value$PC1[-k]
+    x2 <- final_num_value$PC2[-k]
+    x3 <- final_num_value$PC3[-k]
+    x4 <- final_num_value$PC4[-k]
+    x5 <- final_num_value$PC5[-k]
+    x6 <- final_num_value$PC6[-k]
+#     print(x1)
+    J1 <- lm(log(y) ~ x1+x2+x3+x4+x5+x6)
+    print(J1)
+    print(J1$coef[5]*final_num_value$PC4[k])
+    logyhat1 <- J1$coef[1] + J1$coef[2]*final_num_value$PC1[k] + J1$coef[3]*final_num_value$PC2[k] + J1$coef[4]*final_num_value$PC3[k]
+                        + J1$coef[5]*final_num_value$PC4[k] + J1$coef[6]*final_num_value$PC5[k] + J1$coef[7]*final_num_value$PC6[k] 
+    print(logyhat1)
+#     yhat1 <- exp(logyhat1)
+    print(yhat1)
+    e1[k] <- df$median_house_value[k] - logyhat1
+
+    J2 <- lm(log(y) ~ log(x1)+log(x2)+log(x3)+log(x4)+log(x5)+log(x6))
+    logyhat2 <- J2$coef[1] + J2$coef[2]*log(final_num_value$PC1[k]) + J2$coef[3]*log(final_num_value$PC2[k]) + J2$coef[4]*log(final_num_value$PC3[k])
+                        + J2$coef[5]*log(final_num_value$PC4[k]) + J2$coef[6]*log(final_num_value$PC5[k]) + J2$coef[7]*log(final_num_value$PC6[k])
+
+#     yhat2 <- exp(logyhat2)
+    e2[k] <- df$median_house_value[k] - logyhat2
+    
+    J3 <- lm(log(y) ~ log(x1)+log(x2)+x3+log(x4)+log(x5)+log(x6))
+    logyhat3 <- J3$coef[1] + J3$coef[2]*final_num_value$PC1[k] + J3$coef[3]*log(final_num_value$PC2[k]) + J3$coef[4]*final_num_value$PC3[k]
+                        + J3$coef[5]*log(final_num_value$PC4[k]) + J3$coef[6]*log(final_num_value$PC5[k]) + J3$coef[7]*log(final_num_value$PC6[k])
+#     yhat3 <- exp(logyhat3)
+    e3[k] <- df$median_house_value[k] - logyhat3
+    
+    J4 <- lm(log(y) ~ log(x1)+log(x2)+log(x3)+log(x4)+log(x5)+x6)
+    logyhat4 <- J4$coef[1] + J4$coef[2]*log(final_num_value$PC1[k]) + J4$coef[3]*log(final_num_value$PC2[k]) + J4$coef[4]*final_num_value$PC3[k]
+                        + J4$coef[5]*log(final_num_value$PC4[k]) + J4$coef[6]*log(final_num_value$PC5[k]) + J4$coef[7]*final_num_value$PC6[k]
+#     yhat4 <- exp(logyhat4)
+    e4[k] <- df$median_house_value[k] - logyhat4
+    
+    J5 <- lm(log(y) ~ x1+log(x2)+log(x3)+log(x4)+log(x5)+x6)
+    logyhat5 <- J5$coef[1] + J5$coef[2]*final_num_value$PC1[k] + J5$coef[3]*log(final_num_value$PC2[k]) + J5$coef[4]*final_num_value$PC3[k]
+                        + J5$coef[5]*log(final_num_value$PC4[k]) + J5$coef[6]*log(final_num_value$PC5[k]) + J5$coef[7]*final_num_value$PC6[k]
+#     yhat5 <- exp(logyhat5)
+    e5[k] <- df$median_house_value[k] - logyhat5
+    
+    J6 <- lm(log(y) ~ x1+log(x2)+log(x3)+log(x4)+x5+log(x6))
+    logyhat6<- J6$coef[1] + J6$coef[2]*final_num_value$PC1[k] + J6$coef[3]*log(final_num_value$PC2[k]) + J6$coef[4]*final_num_value$PC3[k]
+                        + J6$coef[5]*log(final_num_value$PC4[k]) + J6$coef[6]*final_num_value$PC5[k] + J6$coef[7]*log(final_num_value$PC6[k])
+#     yhat6- exp(logyhat6)
+    e6[k] <- df$median_house_value[k] - logyhat6
+}
+
+```
+
+### Boostrap 
+```{r, warning=FALSE}
+theta1 <- J6$coef[1]
+theta2 <- J6$coef[2]
+theta3 <- J6$coef[3]
+theta4 <- J6$coef[4]
+theta5 <- J6$coef[5]
+theta6 <- J6$coef[6]
+theta7 <- J6$coef[7]
+
+B <- 2000
+len <- length(final_num_value$y)
+theta.hat1 <- theta.hat2 <- theta.hat3 <- theta.hat4 <- theta.hat5 <- theta.hat6 <- theta.hat7 <- numeric(B)
+for (b in 1:B) {
+    sam <- final_num_value %>%  slice_sample(n = len, replace = TRUE)
+    y <- sam$y
+    x1 <- sam$PC1
+    x2 <- sam$PC2
+    x3 <- sam$PC3
+    x4 <- sam$PC4
+    x5 <- sam$PC5
+    x6 <- sam$PC6
+    model <- lm(log(y) ~ x1+log(x2)+log(x3)+log(x4)+x5+log(x6))
+    theta.hat1[b] <- model$coef[1]
+    theta.hat2[b] <- model$coef[2]
+    theta.hat3[b] <- model$coef[3]
+    theta.hat4[b] <- model$coef[4]
+    theta.hat5[b] <- model$coef[5]
+    theta.hat6[b] <- model$coef[6]
+    theta.hat7[b] <- model$coef[7]
+}
+```
+
+
+### Get the bias and se
+```{r, warning=FALSE}
+bias1 <- mean(theta1 - theta.hat1)
+bias2 <- mean(theta2 - theta.hat2)
+bias3 <- mean(theta3 - theta.hat3)
+bias4 <- mean(theta4 - theta.hat4)
+bias5 <- mean(theta5 - theta.hat5)
+bias6 <- mean(theta6 - theta.hat6)
+bias7 <- mean(theta7 - theta.hat7)
+
+print(bias1)
+print(bias2)
+print(bias3)
+print(bias4)
+print(bias5)
+print(bias6)
+print(bias7)
+print(bias8)
+print(bias9)
+
+se1 <- sd(theta.hat1)
+se2 <- sd(theta.hat2)
+se3 <- sd(theta.hat3)
+se4 <- sd(theta.hat4)
+se5 <- sd(theta.hat5)
+se6 <- sd(theta.hat6)
+se7 <- sd(theta.hat7)
+
+print(se1)
+print(se2)
+print(se3)
+print(se4)
+print(se5)
+print(se6)
+print(se7)
+
+```
+

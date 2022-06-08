@@ -1,0 +1,173 @@
+---
+title: "Week5 code&note"
+author: "Franklin"
+date: "2022/3/21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Required packages
+```{r}
+library(tidyverse)
+```
+## Basic Concepts of Probability
+* **Probability** is the likelihood that an outcome occurs.  
+Probabilities are expressed values between 0 and 1.
+* An **experiment** is the process that results in an outcome. In a random experiment, outcome cannot be predicted with certainty
+* The **outcome** of an experiment is a result that we observe
+* The **sample space** is the collection of all possible outcomes of an experiment
+* An **event** is a collection of one or more outcomes from a sample space
+
+## Probability Definitions
+Probabilities may be defined from one of three perspectives:    
+1. *classical definition*: Probabilities can be deduced(推导) from theoretical(理论的) arguments.
+2. *Relatice frequency definition*: Probabilities are based on empirical(经验的) data
+. *Subjective definition*: Probabilities are based on judgement and experience
+
+## Basic Concepts of Probability
+* Probability of any event is the sum of probability of outcome that comprise that event
+* Probability of complement of an event A is $P(A_{complent}) + P(A) = 1$ 
+* If A and B are mutually exclusive, then $P(A \space or\space B) = P(A) + P(B)$
+* If two events are not mutually exclusive, then $P(A\space or\space B) = P(A) + P(B) - P(A \space and \space B)$
+
+## Conditional Probability
+* $P(A|B) = p(A&B)/P(B)$, the condional probability of A given B
+
+## Random Variables
+A random variable is a numerical description of the outcome of an experiment  
+* A discrete random variable is one for which teh number of possible outcomes can be counted
+* A continuous random variable has outcomes inf, over one or more continuous intervals or real numbers
+
+## Probability distribution
+A characterization of the possible values that a **Random Variable** may assume along with the probability of assuming these values  
+**Representation:**  
+* X axis = all possible values
+* Y axis = probability of observing each value
+* The sum of area under the function is always 1
+
+## Probability Distribution
+### 1. Discrete Probability Distribution
+Called Probability Mass Function(PMF), has the following characteristic:  
+1. $f_{X}(x), x_{i} \space represents \space the \space i^{th} \space value \space of \space X, \space 0 < f(x_{i}) < 1$ for all i.  
+2. $\sum_{i} f(x_{i}) = 1$  
+3. For cumulative distribution function(CDF), $F(x) = P(X<=x)$  
+4. Some Formula of CDF:  
+  * Pr(X > x) = 1 - F(x)， 因为定义，F(x) = P(X<=x), {x:X<=x} 和 {x: X>x} 是互补的事件, 所以必然有 Pr(X > x) = 1 - F(x)  
+  * $Pr(x_{1}<X<=x_{2}) = F(x_2) - F(x_1)$同上，通过三个集合来证明即可: A = {X: X<=x1}, B = {X: x1 < X <=x2}, C = {X: X <=x2}则有:    
+  $Pr(B)\space=Pr(C) \space - Pr(A \cap B) = Pr(C) \space - \space Pr(A)$
+
+### 2. Expected Value of a Discrete Random variable（期望）
+Has formula:  
+$ E[X] = \sum x_{i}f(x_i)$, 即高中的分布,其中, xi 为实际的值，f(xi)概率值(CDF)  
+### 3. Variance of a discrete random variable
+Has formula:  
+$Var[X] = \sum (x_{i} - E[X])^2f(x_{i})$, 即用期望估计均值，同时乘上对应的概率
+
+### 3. Bernoulli Distribution 伯努利分布
+其PMFformula:  
+f(x) = p, if x = 1, else 0, if x=0  
+E[X] = p, Var[X] = p(1-p)  
+
+### 4. Binomial Distribution 二项分布
+不赘述了，见ppt
+### 5. Poisson Distribution
+同上，见ppt
+
+## Continuous Probability Distributions
+**Probability density function (PDF)**  
+A curve described by a mathematical function that characterizes a continuous random variable  
+Properties of PDF:  
+* f(x) >=0 for all values of x
+* Total area under the pdf is 1
+* P(X=x) = 0, 不能有一个确定的值，其实际公式为: cdf: Fx(x) - Fx左极限(x)(对于continuous, 其一定为0)
+* probabilities are only defined over an interval
+* P(a<=x<=b) = F(b) - F(a)
+
+### uniform distribution
+见ppt
+### Discrete Uniform Distribution
+A variation of the uniform distribution is one for which the random variable is restricted to integer values between a and b, this is called a discrete uniform distribution.
+
+### Normal Distribution
+**Properties**
+1. symmetric
+2. Mean = median = mode
+3. Range is unbounded
+4. Empirical rules apply($+,- \space 3\sigma$)  
+
+**Using Standard normal distribution Tables**
+Change any non-standard normal distribution to standard:  
+By using z-score:  
+$z = (x-u)/\sigma$
+
+### Exponential Distribution
+* Models the time between randomly occurring events
+* Density function:  
+$f(x)\space=\space\lambda e^{-\lambda x}$,for x>=0  
+* CDF:  
+$F(x)=1-e^{-\lambda x}$  
+If the number of events occurring during an interval of time has a Possion distribtion, then the time between events is exponentially distributed.
+
+```{r}
+# representation of different norm
+# dnorm, represent as normal distribution pdf
+dnorm(0, mean = 0, sd = 1)
+# pnorm, p 表示probability，其返回的是积分
+pnorm(0)# calculate the cumulative probability
+# qnorm, the CDF inverse function, 这里的q指的是quantile，即分位数
+# 即计算的是标准正态分布中, 第50百分位数的Z-score是多少
+qnorm(0.5)
+# rnorm， 生成一组符合正态分布的随机数
+rnorm(5)
+# An example
+x <- seq(from = -3, to =3, by = 0.1)
+y = dnorm(x)
+data1 <- data.frame(x=x,y=y)
+ggplot(data1, aes(x,y)) + 
+  geom_line() + 
+  labs(x = "Normal Deviate", y="Density") +
+  scale_x_continuous(breaks = seq(-3,3,1))
+```
+## Statistical Sampling
+1. Sampling is the foundation of statistical analysis
+2. Estimator are measures used to estimate unknown population parameters
+3. A point estimate is a single number derived from a sample that is used to estimate the value of a population parameters
+
+## Sampling Error
+1. Sampling error occurs because samples are only a subset of the total population.(Sampling error depends on the size of the sample relative to the population. This type of sampling error cannot be totally avoided)  
+2. Non-sampling error occurs when the sample does not adequately represent the target population.(Nonsampling error usually results from a poor sample design or choosing the wrong population frame)
+
+## Sampling distributions
+* Sampling distribution of the mean is the distribution of the means of all possible samples of a fixed size n from some population
+* The standard deviation of the sampling distribution of the mean is called the standard error of the mean,即为样本抽样误差的指标
+* As n increase, the standard error is decreases
+
+## Central limit theorem
+1. 如果samplesize足够大， 则sampling distribution 的均值是接近于服从正态分布的，其有一个均值等于总体均值
+2. 如果population是正态分布的，则样本分布对于任何的采样size，都是正态分布的.
+3. Central limit theorem allow us to use the theory we learned about calculating probabilities for normal distributions to draw conclusions about sample means.
+
+## Example
+The purchase order order amounts for books on a publisher’s website is  normally distributed with a mean of $36 and a standard deviation of $8.
+
+Find the probability that:  
+1. someone’s purchase amount exceeds $40.
+2. the mean purchase amount for 16 customers exceeds $40
+```{r}
+#1. for question 1, using pnorm to find the probability 
+y = 1 - pnorm(q = 40, mean = 36,sd = 8)
+y
+#2. it's the mean distribution, so we have u_xbar = u_population
+# std_xbar = std_population/sqrt(n)
+y2 = 1 - pnorm(q =40, mean = 36, sd = 2)
+y2
+```
+## Interval Estimates
+1. An interval estimate provides a range for a population characteristic based on a sample
+2. 100(1-a)% probability interval is any interval [A,B] s.t. the probability of falling between A and B is 1-a
+3. Notice that Probability intervals are often centered on the mean or median
+
+## Confidence interval
+见回归笔记

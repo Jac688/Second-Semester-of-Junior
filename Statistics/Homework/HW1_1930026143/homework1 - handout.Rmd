@@ -1,0 +1,167 @@
+---
+title: "Homework Assignment 1"
+author: "Jack, 1930026143"
+date: "__Due on Feb 27, 2022 at 11:59 pm__"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+
+
+```{r setup, include=FALSE}
+library(knitr)
+# set global chunk options: images will be 7x5 inches
+knitr::opts_chunk$set(fig.width=7, fig.height=5)
+options(digits = 4)
+
+
+## indents are for indenting r code as formatted text
+## They may need to be adjusted depending on your OS
+# if your output looks odd, increase or decrease indent
+indent1 = '    '
+indent2 = '        '
+indent3 = '            '
+#library(tidyverse)
+#library(reshape2)
+```
+
+### Instructions: You need to fully show your explanations, codes, and results to get full credit. You will need to submit your R markdown file and the generated pdf file. Missing the R markdown file, you will get a 10% penalty. Missing pdf file, you will have no grades (Your TA will not knit pdf for you). Late submission will not be accepted.
+
+1. a) Generate a random sample $X_1, ., X_{100}$ which is from a normal distribution with mean $\mu = 5$ and standard deviation $\sigma = 3$. Use set.seed(99) before random number generation.
+```{r, echo=TRUE}
+      set.seed(99)
+      X = rnorm(100, mean=5, sd=3)
+      X
+```
+    b) Write an R function 'fx' in R to implement the function $y=(x-a)/b$, which will transform an input vector $x$ and return the output $y$. However, the function should take three input arguments $x,a$ and $b$.
+```{r , echo=TRUE}
+      fx <- function(x, a, b){
+        y = (x-a)/b
+        return(y)
+      }
+
+      # test the function 'fx' 
+      # take the three arguments x=10, a=2, b=4
+      # detemine the result whether equal to (10-2)/4
+      fx(10, 2, 4) == 2
+```
+    c) Generate the random sample $y$ using the function in b), where $x$ = the random sample generated in a), a=5 and b=3. What is the distribution of $y$? And explain. Then calculate the sample mean and standard deviation of $y$ and compare them with the population mean and standard deviation. Note, please show your derivation of the population mean and standard deviation. 
+```{r , echo=TRUE}
+      y = fx(X, 5, 3)
+      y_mean = mean(y) # sample mean
+      y_sd = sd(y)     # sample standard deviation
+```  
+
+Because of the property of the normal distribution, it satisfies: $E(aX+b)=aE(X)+b$ and $Var(aX+b)=a^2Var(X)$ ($Sd(aX+b)=a*Sd(X)$). We can calculate the population mean and standard deviation by the functions.
+```{r , echo=TRUE}
+      # Population
+      population_mean <- (5-5)/3  # Population mean
+      population_sd <- 3/3        # Population standard deviation
+```  
+
+The results show as follow:
+```{r , echo=TRUE}
+      print(y_mean) # sample mean
+      print(y_sd)   # sample standard deviation
+      print(population_mean) # sample mean
+      print(population_sd)   # sample standard deviation
+
+```  
+The distribution of y is normal distribution. Because the population of data x is normal distribution, and the data y is a linear transformation of x. Therefore, y is also satisfies normal distribution. We can also prove by the QQ plot:
+```{r , echo=TRUE}
+      qqnorm(y,col="red",pch=19)
+      qqline(y,col="black")
+```
+QQ Plot can tell whether a piece of data fits the normal distribution. We can be found that mostly all the points of the plot are around the QQ line, which means that there is sufficient evidence that y also conforms to a normal distribution.
+
+    d) Display a probability histogram of the random sample $y$ and add an estimated probability density function to your histogram 
+```{r , echo=TRUE}
+      hist(y,main="Histogram & Estimated Probability Density Function",freq=FALSE)
+      lines(density(y))
+```
+    e) Add the true probability density function to your histogram in d)
+```{r , echo=TRUE}
+      hist(y,main = "Histogram & True Probability Density Function",freq=FALSE)
+      d <- seq(from=min(y), to=max(y), by=0.01)
+      lines(d, dnorm(d,0,1))
+```
+2. We will use the dataset called `hflights`. This dataset contains all flights departing from Houston airports IAH (George Bush Intercontinental) and HOU (Houston Hobby). 
+The data comes from the Research and Innovation Technology Administration at the Bureau of Transportation statistics: [hflights](http://www.transtats.bts.gov/DatabaseInfo.asp?DB_ID=120&Link=0). Make sure you have installed the packages `hflights` before suing them.
+```{r rdata}
+# Load packages
+# install.packages("hflights")
+library(hflights)
+data(hflights)
+library('dplyr');
+```
+    
+(a) How many rows and columns of `hflights`? Get the names of the columns.
+```{r , echo=TRUE}
+      r = nrow(hflights)     # return the row numbers of hflights
+      c = ncol(hflights)     # return the column numbers of hflights
+      col_name = colnames(hflights)    # return the column names
+```
+The result shows as follows:
+```{r , echo=TRUE}
+      print(r)
+      print(c)
+      print(col_name)
+```
+(b) Select the first 15 rows make it a data frame called `phflights`. Suppose we would like check three variables, DepTime, ArrTime and FlightNum. Select these three columns and call it `sflights`. Only Show the first few lines of `sflights`.
+
+phflights: The first 15 rows of hflights
+```{r , echo=TRUE}
+      phflights <- hflights[1:15,]
+      head(phflights)
+```
+sflights: Three variables, DepTime, ArrTime and FlightNum of hflights 
+```{r , echo=TRUE}
+      sflights <- hflights[ ,colnames(hflights) %in% c('DepTime', 'ArrTime', 'FlightNum')]
+      head(sflights)
+```
+
+(c) Create a new column vector Called `BNum` indicating if the FlightNum is greater than 1000 and append this column to `sflights`. Show the first few lines.
+
+BNum:  FlightNum is greater than 1000, and the new column of the sflights
+```{r , echo=TRUE}
+      BNum = hflights$FlightNum > 1000
+      sflights$BNum<-BNum
+      head(sflights)
+```
+(d) Compute the average arrival delay (ArrDelay) to each destination for `hflights`. (Hint: use na.rm = TRUE to remove missing values) Only show the first 10 results. Then for each carrier, calculate the percentage of flights cancelled or diverted.
+
+The average arrival delay (ArrDelay) to each destination for hflights: 
+```{r , echo=TRUE}
+      dest_arr <- group_by(hflights, Dest)
+      dest_AvgDelay <- summarise(dest_arr, ArrDelay=mean(ArrDelay, na.rm=TRUE))
+      dest_AvgDelay[1:10,]
+
+```
+The percentage of flights cancelled or diverted for each carrier:
+
+```{r , echo=TRUE}
+      carr_fli <- group_by(hflights, UniqueCarrier)
+      cancel_devert <- summarise(carr_fli , Cancelled=mean(Cancelled), Diverted=mean(Diverted))
+      head(cancel_devert)
+
+```
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

@@ -1,0 +1,419 @@
+---
+title: "itsc_project"
+author: '1930026060'
+date: '2022-05-03'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading Data
+
+```{r}
+data <- read.csv("housing_train.csv")
+head(data)
+set.seed(100)
+```
+
+## Sample Method
+
+```{r}
+library(bootstrap)
+```
+
+```{r}
+B <- 2000
+n <- nrow(data)
+longtitude_mean <- numeric(B)
+longtitude_var <- numeric(B)
+
+latitude_mean <- numeric(B)
+latitude_var <- numeric(B)
+
+house_value_mean <- numeric(B)
+house_value_var <- numeric(B)
+```
+
+```{r}
+# xxx_mean store the estimated mean of every round
+# xxx_var store the estimated variance of every round
+# feel free to use them for data preprocessing
+
+for (b in 1:B) {
+  i <- sample(1:n, size = n/5, replace = TRUE)
+  longtitude_mean[b] <- mean(data$longitude[i])
+  longtitude_var[b] <- sd(data$longitude[i])
+  
+  latitude_mean[b] <- mean(data$latitude[i])
+  latitude_var[b] <- sd(data$latitude[i])
+  
+  house_value_mean[b] <- mean(data$median_house_value[i])
+  house_value_var[b] <- sd(data$median_house_value[i])
+  
+}
+```
+
+```{r}
+f <- function(means, vars) {
+  return(c(mean(means), mean(vars)))
+}
+```
+
+```{r}
+f(longtitude_mean, longtitude_var)
+```
+
+```{r}
+f(latitude_mean, latitude_var)
+```
+
+```{r}
+f(house_value_mean, house_value_var)
+```
+
+## Maximum Likelihood Method
+
+### Estimation via R
+
+```{r}
+# Normal Distribution
+normal_estimator <- function(x) {
+  n <- length(x)
+  mu <- mean(x)
+  sigma <- sqrt(sum((x-mu)^2)/n)
+  return(c(mu, sigma))
+} 
+
+# Exponential Distribution
+exponential_estimator <- function(x) {
+  n <- length(x)
+  lambda <- n/sum(x)
+  return(lambda)
+}
+
+# GMM Distribution
+gmm_estimator <- function(x) {
+  k = 2
+  n <- length(x)
+  prob <- matrix(rep(0, k*n), nrow = n)
+  weight <- matrix(rep(0, k*n), nrow = n)
+  
+  alpha <- c(0.5, 0.5)
+  mu <- runif(2)
+  sigma <- runif(k)
+  for (step in 1:200) {
+    for (j in 1:k) {
+      prob[,j] <- sapply(x, dnorm, mu[j], sigma[j])
+      weight[,j] <- alpha[j] * prob[, j]
+    }
+    row_sum <- rowSums(weight)
+    prob <- weight/row_sum
+    
+    
+    pre_alpha <- alpha
+    pre_mu <- mu
+    pre_sigma <- sigma
+    
+    for (j in 1:k) {
+      sum1     <- sum(prob[, j])
+      sum2     <- sum(x*prob[, j])
+      alpha[j] <- sum1/n
+      mu[j]   <- sum2/sum1
+      sum3     <- sum(prob[, j]*(x-mu[j])^2)
+      sigma[j] <- sqrt(sum3/sum1)
+    }
+
+    
+    threshold <- 1e-5
+    if (sum(abs(alpha - pre_alpha)) < threshold & 
+        sum(abs(mu - pre_mu)) < threshold &
+        sum(abs(sigma - pre_sigma)) < threshold)
+        break
+  }
+  cat('step', step, 'alpha', alpha,'mu', mu,'sigma', sigma, '\n')
+  return(c(alpha, mu, sigma))
+}
+
+```
+
+------------------------------------------------------------------------
+
+Obtain estimator(s)
+
+```{r}
+estimator <- gmm_estimator(data$longitude)
+```
+
+Estimation of Mean and Variance
+
+```{r}
+mu <- estimator[1]*estimator[3] + estimator[2]*estimator[4]
+variance <- estimator[5] + estimator[6]
+res <- c(mu, variance)
+res
+```
+
+------------------------------------------------------------------------
+
+Obtain Estimator
+
+```{r}
+estimator <- gmm_estimator(data$latitude)
+```
+
+Estimation of Mean and Variance
+
+```{r}
+mu <- estimator[1]*estimator[3] + estimator[2]*estimator[4]
+variance <- estimator[5] + estimator[6]
+res <- c(mu, variance)
+res
+```
+
+------------------------------------------------------------------------
+
+Estimation
+
+```{r}
+estimator <- normal_estimator(data$median_house_value)
+estimator
+```
+
+## MC Generation
+
+### House Value
+
+```{r}
+parameters <- function(x) {
+  return(c(mean(x), sd(x)))
+}
+
+mc_norm_estimator <- function(m, n, x) {
+  p <- parameters(x)
+  mc_means_s <- numeric(m)
+  mc_sds_s <- numeric(m)
+  
+  mc_means_m <- numeric(m)
+  mc_sds_m <- numeric(m)
+  
+  B <- 200
+  housePrice_sample_mean <- numeric(B)
+  housePrice_sample_sd <- numeric(B)
+  
+  for(i in 1:m) {
+    x_mc <- rnorm(n, p[1], p[2])
+    # using sample method
+    for (b in 1:B) {
+      j <- sample(1:n, size = n/5, replace = TRUE)
+      housePrice_sample_mean[b] <- mean(x[j])
+      housePrice_sample_sd[b] <- sd(x[j])
+    }
+    mc_means_s[i] <- mean(housePrice_sample_mean)
+    mc_sds_s[i] <- mean(housePrice_sample_sd)
+    
+    # using MLE method
+    mc_means_m[i] <- mean(x_mc)
+    mc_sds_m[i] <- sqrt(sum((x_mc-mc_means_m[i])^2)/n)
+  }
+  # calculate MSE
+  mean_mse <- mean((mc_means_m - mc_means_s)^2)
+  sd_mse <- mean((mc_sds_m - mc_sds_s)^2)
+  cat('m_mean', mean(mc_means_m),'m_sd',mean(mc_sds_m))
+  cat('s_mean', mean(mc_means_s),'s_sd',mean(mc_sds_s))
+  return(c(mean_mse, sd_mse))
+}
+```
+
+```{r}
+m <- 100
+n <- 500
+p_medianHouseValue <- mc_norm_estimator(m, n, data$median_house_value)
+```
+
+```{r}
+p_medianHouseValue
+```
+
+```{r}
+m <- 100
+n <- 10000
+p_medianHouseValue <- mc_norm_estimator(m, n, data$median_house_value)
+```
+
+```{r}
+p_medianHouseValue
+```
+
+### Longitude and Latitude
+
+```{r}
+# generate random number follows GMM
+rgmm <- function(n, alpha1, alpha2, mu1, mu2, sigma1, sigma2) {
+  y <- sample(c("head", "tail"), size = n, replace = TRUE, prob = c(alpha1, alpha2))
+  x <- rnorm(n = n, mu1, sigma1)
+  tails <- y %in% c("tail")
+  x[tails] <- rnorm(sum(tails), mean = mu2, sigma2)
+  return(x)
+}
+```
+
+```{r}
+mc_gmm_estimator <- function(m, n, x,seed) {
+  set.seed(seed)
+  # latitude
+  alpha1 <- 0.6088431
+  alpha2 <- 0.3911569
+  mu1 <- 0.5037682
+  mu2 <- -0.7706291
+  sigma1 <- 1.002054
+  sigma2 <- 0.08067091
+  
+  mc_means_s <- numeric(m)
+  mc_sds_s <- numeric(m)
+  
+  mc_means_m <- numeric(m)
+  mc_sds_m <- numeric(m)
+  
+  B <- 200
+  mc_sample_mean <- numeric(B)
+  mc_sample_sd <- numeric(B)
+  
+  for(i in 1:m) {
+    x_mc <- rgmm(n, alpha1, alpha2, mu1, mu2, sigma1, sigma2)
+    # using sample method
+    for (b in 1:B) {
+      j <- sample(1:n, size = n/5, replace = TRUE)
+      mc_sample_mean[b] <- mean(x[j])
+      mc_sample_sd[b] <- sd(x[j])
+    }
+    mc_means_s[i] <- mean(mc_sample_mean)
+    mc_sds_s[i] <- mean(mc_sample_sd)
+    
+    # using MLE method
+    estimators <- gmm_estimator(x_mc)
+    mc_means_m[i] <- estimators[1]*estimators[3] + estimators[2]*estimators[4]
+    mc_sds_m[i] <- estimators[5] + estimators[6]
+  }
+  # calculate MSE
+  mean_mse <- mean((mc_means_m - mc_means_s)^2)
+  sd_mse <- mean((mc_sds_m - mc_sds_s)^2)
+  cat('m_mean', mean(mc_means_m),'m_sd',mean(mc_sds_m), '\n')
+  cat('s_mean', mean(mc_means_s),'s_sd',mean(mc_sds_s),'\n')
+  return(c(mean_mse, sd_mse))
+}
+```
+
+```{r}
+# Standard distribution parameters
+mean(data$latitude)
+sd(data$latitude)
+```
+
+```{r}
+# small sample
+m <- 50
+n <- 500
+p_latitude <- mc_gmm_estimator(m, n, data$latitude, seed = 325)
+p_latitude
+```
+
+```{r}
+# large sample
+m <- 40
+n <- 10000
+p_latitude <- mc_gmm_estimator(m, n, data$latitude,seed=335)
+p_latitude
+```
+
+```{r}
+mc_gmm_estimator <- function(m, n, x,seed) {
+  set.seed(seed)
+  #longitude
+  alpha1 <- 0.397864
+  alpha2 <- 0.602136
+  mu1 <- -1.144663
+  mu2 <- 0.7459607
+  sigma1 <- 0.3592238
+  sigma2 <- 0.3963277
+  
+  mc_means_s <- numeric(m)
+  mc_sds_s <- numeric(m)
+  
+  mc_means_m <- numeric(m)
+  mc_sds_m <- numeric(m)
+  
+  B <- 200
+  mc_sample_mean <- numeric(B)
+  mc_sample_sd <- numeric(B)
+  
+  for(i in 1:m) {
+    x_mc <- rgmm(n, alpha1, alpha2, mu1, mu2, sigma1, sigma2)
+    # using sample method
+    for (b in 1:B) {
+      j <- sample(1:n, size = n/5, replace = TRUE)
+      mc_sample_mean[b] <- mean(x[j])
+      mc_sample_sd[b] <- sd(x[j])
+    }
+    mc_means_s[i] <- mean(mc_sample_mean)
+    mc_sds_s[i] <- mean(mc_sample_sd)
+    
+    # using MLE method
+    estimators <- gmm_estimator(x_mc)
+    mc_means_m[i] <- estimators[1]*estimators[3] + estimators[2]*estimators[4]
+    mc_sds_m[i] <- estimators[5] + estimators[6]
+  }
+  # calculate MSE
+  mean_mse <- mean((mc_means_m - mc_means_s)^2)
+  sd_mse <- mean((mc_sds_m - mc_sds_s)^2)
+  cat('m_mean', mean(mc_means_m),'m_sd',mean(mc_sds_m))
+  cat('s_mean', mean(mc_means_s),'s_sd',mean(mc_sds_s))
+  return(c(mean_mse, sd_mse))
+}
+```
+
+```{r}
+m <- 40
+n <- 500
+p_longitude <- mc_gmm_estimator(m, n, data$longitude, seed = 325)
+p_longitude
+```
+
+```{r}
+m <- 40
+n <- 10000
+p_longitude <- mc_gmm_estimator(m, n, data$longitude, seed = 325)
+p_longitude
+```
+
+## Confidence Level
+
+```{r}
+a <- numeric(1000)
+for (i in 1:1000) {
+  a[i] <- mean(rnorm(1000, mean = p[1],sd = p[2]))
+}
+
+ucl <- mean(a) + qnorm(.975)*sd(a)
+mean(a < ucl)
+
+b <- numeric(1000)
+for (i in 1:1000) {
+  b[i] <- sd(rnorm(1000, p[1], p[2]))
+}
+
+```
+
+
+```{r}
+library(ggplot2)
+library(ggrepel)
+library(devtools)
+install_github("vqv/ggbiplot")
+library(ggbiplot)
+
+data.pca<-prcomp(data,center = TRUE,scale. = TRUE)
+summary(data.pca)
+ggbiplot(data.pca)
+```

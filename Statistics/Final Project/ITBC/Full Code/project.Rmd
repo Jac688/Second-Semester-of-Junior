@@ -1,0 +1,293 @@
+---
+title: "project"
+author: "Ricardo"
+date: "2022/5/3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+data<-read.csv("housing_train.csv")
+hm<-cor(data)
+data
+hm
+heatmap(x=hm,symm = TRUE)
+
+```
+
+```{r}
+library(corrplot)
+library(ggplot2)
+library(ggcorrplot)
+
+corr <- round(cor(data), 1)
+head(corr[, 1:6])
+
+
+# 自定义渐变色板 colorRampPalette()
+# 用法：
+# 1.输入调色板的主要颜色，返回函数
+# 2.在函数中输入想要获取的颜色数量，返回颜色数值
+library(scales) #调用scales库中的show_col函数
+mypalette<- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+mycolors<- mypalette(200)#200种颜色，返回颜色数值
+#show_col(mycolors)
+
+corrplot(
+	corr,
+	method="color",#调整为正方形
+	col=mycolors, #200种颜色，返回颜色数值
+	type="lower", #保留右上部分
+	order="hclust", #层次聚类
+	addCoef.col = "black", #添加相关系数
+	tl.col="black", # 指定文本标签的颜色
+	tl.srt=0  )#去除自身相关
+```
+
+
+```{r}
+par(mfrow=c(3,3))
+hist(data$latitude,xlab ="latitude",main = "Histogram of latitude")
+hist(data$longitude,xlab ="longitude",main = "Histogram of longitude")
+hist(data$housing_median_age,xlab ="housing_median_age",main = "Histogram of housing_median_age")
+hist(data$median_income,xlab ="median_income",main = "Histogram of median_income")
+
+#结合上面的heatmap,再加上这些频率直方图，我们不难发现下面这几个变量很相似，所以为了研究的方便，我们只取其中一个。
+hist(data$population,xlab ="population",main = "Histogram of population")
+hist(data$total_rooms,xlab ="total_rooms",main = "Histogram of total_rooms")
+hist(data$total_bedrooms,xlab ="total_bedrooms",main = "Histogram of total_bedrooms")
+hist(data$households,xlab ="households",main = "Histogram of households")
+
+#房价频率直方图
+hist(data$median_house_value,xlab ="median_house_value",main = "Histogram of median_house_value")
+```
+
+```{r}
+# 如果需要单独哪个变量的直方图：
+library(ggplot2)
+
+ggplot(data,aes(x=latitude))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of latitude")
+
+ggplot(data,aes(x=longitude))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of longitude")
+
+ggplot(data,aes(x=housing_median_age))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of housing_median_age")
+
+ggplot(data,aes(x=median_income))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of median_income")
+
+# 取其一
+ggplot(data,aes(x=population))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of population")
+
+ggplot(data,aes(x=total_rooms))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of total_rooms")
+
+ggplot(data,aes(x=total_bedrooms))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of total_bedrooms")
+
+ggplot(data,aes(x=households))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of households")
+
+#房价
+ggplot(data,aes(x=median_house_value))+geom_histogram(aes(y=..density..),fill="grey",color="black",alpha=1)+geom_density(alpha=.2, fill="red")+labs(title = "Frequency histogram of median_house_value")
+
+```
+
+```{r}
+#经纬度和房价的三维图
+library(plot3D)
+library(lattice)
+
+longitude<-data$longitude
+latitude<-data$latitude
+HouseValue<-data$median_house_value
+
+scatter3D(longitude, latitude, median_house_value, 
+          phi = 1, 
+          col = ramp.col(col = c("cyan", "blue"),
+          n = length(z)),pch =18, 
+          cex = 0.5,  
+          ticktype = "detailed",bty = "b2")
+
+```
+
+```{r}
+#经纬度和房价 另一种表达
+library(lattice)
+print(cloud(HouseValue ~ longitude * latitude), more = TRUE)
+```
+
+```{r}
+# 收入和房价
+
+# Loading package
+library(scales)
+# Scatterplot with quadratic line of best fit
+# REPLACE here
+ggplot(data,
+       aes(x = data$median_income,
+           y = data$median_house_value)) +
+  geom_point(color="cornflowerblue",
+             size = 1,
+             alpha = 0.4) +
+  geom_smooth(size = 0.5,
+              color = "tomato",
+              method = "lm",
+              formula = y ~ poly(x, 2)) +
+  scale_y_continuous(limits = c(0, 500000)) +
+  scale_x_continuous(breaks = seq(-2, 6, 1)) +
+  labs(x = "median income",
+       y = "median house value",
+       title = "Relationship between income and house price") +
+theme_minimal()
+```
+
+```{r}
+# age和房价 这样子，说明它们没啥关系？
+
+# Loading package
+library(scales)
+# Scatterplot with quadratic line of best fit
+# REPLACE here
+ggplot(data,
+       aes(x = data$housing_median_age,
+           y = data$median_house_value)) +
+  geom_point(color="cornflowerblue",
+             size = 1,
+             alpha = 0.4) +
+  geom_smooth(size = 0.5,
+              color = "tomato",
+              method = "lm",
+              formula = y ~ poly(x, 2)) +
+  scale_y_continuous(limits = c(0, 500000)) +
+  scale_x_continuous(breaks = seq(-2, 2, 1)) +
+  labs(x = "housing median age",
+       y = "median house value",
+       title = "Relationship between house age and house price") +
+theme_minimal()
+```
+
+```{r}
+#popilation和房价
+library(ggplot2)
+ggplot(data, aes(x = population, y = median_house_value)) +
+  xlab("Population")+
+  ylab("Median house value")+
+  geom_point()
+```
+
+```{r}
+#latitude核估计
+n <- length(latitude)
+h1 <- 1.06 * sd(latitude) * n^(-1/5)
+h2 <- .9 * min(c(IQR(latitude)/1.34,sd(latitude))) * n^(-1/5)
+h0 <- bw.nrd0(latitude)
+
+par(mfrow = c(2, 2))
+plot(density(x=latitude))
+plot(density(x=latitude,bw=h1))
+plot(density(x=latitude,bw=h2))
+plot(density(x=latitude,kernel = "epanechnikov"))
+par(mfrow = c(2, 2))
+plot(density(x=latitude,kernel = "rectangular"))
+plot(density(x=latitude,kernel = "triangular"))
+plot(density(x=latitude,kernel = "biweight"))
+plot(density(x=latitude,kernel = "cosine"))
+```
+
+```{r}
+#longitude核估计
+n <- length(longitude)
+h1 <- 1.06 * sd(longitude) * n^(-1/5)
+h2 <- .9 * min(c(IQR(longitude)/1.34,sd(longitude))) * n^(-1/5)
+h0 <- bw.nrd0(longitude)
+
+par(mfrow = c(2, 2))
+plot(density(x=longitude))
+plot(density(x=longitude,bw=h1))
+plot(density(x=longitude,bw=h2))
+plot(density(x=longitude,kernel = "epanechnikov"))
+par(mfrow = c(2, 2))
+plot(density(x=longitude,kernel = "rectangular"))
+plot(density(x=longitude,kernel = "triangular"))
+plot(density(x=longitude,kernel = "biweight"))
+plot(density(x=longitude,kernel = "cosine"))
+```
+
+```{r}
+#housing_median_age核估计
+housing_median_age<-data$housing_median_age
+n <- length(housing_median_age)
+h1 <- 1.06 * sd(housing_median_age) * n^(-1/5)
+h2 <- .9 * min(c(IQR(housing_median_age)/1.34,sd(housing_median_age))) * n^(-1/5)
+h0 <- bw.nrd0(housing_median_age)
+
+par(mfrow = c(2, 2))
+plot(density(x=housing_median_age))
+plot(density(x=housing_median_age,bw=h1))
+plot(density(x=housing_median_age,bw=h2))
+plot(density(x=housing_median_age,kernel = "epanechnikov"))
+par(mfrow = c(2, 2))
+plot(density(x=housing_median_age,kernel = "rectangular"))
+plot(density(x=housing_median_age,kernel = "triangular"))
+plot(density(x=housing_median_age,kernel = "biweight"))
+plot(density(x=housing_median_age,kernel = "cosine"))
+```
+
+```{r}
+#population核估计
+population<-data$population
+n <- length(population)
+h1 <- 1.06 * sd(population) * n^(-1/5)
+h2 <- .9 * min(c(IQR(population)/1.34,sd(population))) * n^(-1/5)
+h0 <- bw.nrd0(population)
+
+par(mfrow = c(2, 2))
+plot(density(x=population))
+plot(density(x=population,bw=h1))
+plot(density(x=population,bw=h2))
+plot(density(x=population,kernel = "epanechnikov"))
+par(mfrow = c(2, 2))
+plot(density(x=population,kernel = "rectangular"))
+plot(density(x=population,kernel = "triangular"))
+plot(density(x=population,kernel = "biweight"))
+plot(density(x=population,kernel = "cosine"))
+```
+
+```{r}
+#median_income核估计
+median_income<-data$median_income
+n <- length(median_income)
+h1 <- 1.06 * sd(median_income) * n^(-1/5)
+h2 <- .9 * min(c(IQR(median_income)/1.34,sd(median_income))) * n^(-1/5)
+h0 <- bw.nrd0(median_income)
+
+par(mfrow = c(2, 2))
+plot(density(x=median_income))
+plot(density(x=median_income,bw=h1))
+plot(density(x=median_income,bw=h2))
+plot(density(x=median_income,kernel = "epanechnikov"))
+par(mfrow = c(2, 2))
+plot(density(x=median_income,kernel = "rectangular"))
+plot(density(x=median_income,kernel = "triangular"))
+plot(density(x=median_income,kernel = "biweight"))
+plot(density(x=median_income,kernel = "cosine"))
+```
+
+```{r}
+#median_house_value核估计
+median_house_value<-data$median_house_value
+n <- length(median_house_value)
+h1 <- 1.06 * sd(median_house_value) * n^(-1/5)
+h2 <- .9 * min(c(IQR(median_house_value)/1.34,sd(median_house_value))) * n^(-1/5)
+h0 <- bw.nrd0(median_house_value)
+
+par(mfrow = c(2, 2))
+plot(density(x=median_house_value))
+plot(density(x=median_house_value,bw=h1))
+plot(density(x=median_house_value,bw=h2))
+plot(density(x=median_house_value,kernel = "epanechnikov"))
+par(mfrow = c(2, 2))
+plot(density(x=median_house_value,kernel = "gaussian"))
+plot(density(x=median_house_value,kernel = "triangular"))
+plot(density(x=median_house_value,kernel = "biweight"))
+plot(density(x=median_house_value,kernel = "cosine"))
+```
